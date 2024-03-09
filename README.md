@@ -4,7 +4,7 @@
 
 The Atari 2600 application for [webЯcade](https://www.webrcade.com) is an emulator for the [Atari 2600 game console](https://en.wikipedia.org/wiki/Atari_2600).
 
-The underlying emulator is a modified version of the Libretro fork of [Stella-Libretro](https://github.com/libretro/stella-libretro).
+The underlying emulator is a modified version of the Libretro fork of [Stella-Libretro](https://github.com/libretro/stella).
 
 <p align="center">
  <a href="https://play.webrcade.com">
