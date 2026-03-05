@@ -20,7 +20,15 @@ export class Emulator extends RetroAppWrapper {
     this.frameRate = 60;
 
     const START_DELAY = 5;
+
     let started = 0;
+
+    // Fractional sample carry
+    this.audioCarry = 0;
+
+    this.total = 0;
+    this.count = 0;
+
     this.audioCallback = (offset, length) => {
       if (started === START_DELAY) {
         this.audioProcessor.start();
@@ -28,15 +36,67 @@ export class Emulator extends RetroAppWrapper {
         started++;
         return;
       }
-      const audioArray = new Int16Array(window.Module.HEAP16.buffer, offset, 4096);
+
+      // length = incoming frames (mono)
+      //this.total += length;
+      this.count++;
+
+      if (this.count >= this.frameRate) {
+        //console.log("total:", this.total);
+        this.total = 0;
+        this.count = 0;
+      }
+
+      // ---- target frames this callback ----
+      const exactFrames = (31440 + 15) / this.frameRate; // 800.25
+      const framesWithCarry = exactFrames + this.audioCarry;
+      const outFrames = Math.floor(framesWithCarry);
+      this.audioCarry = framesWithCarry - outFrames;
+
+      // ---- input samples (stereo interleaved) ----
+      const inSamples = length << 1;
+      const input = new Int16Array(
+        window.Module.HEAP16.buffer,
+        offset,
+        inSamples
+      );
+
+      // ---- output buffer (stereo interleaved) ----
+      const outSamples = outFrames << 1;
+      const output = new Int16Array(outSamples);
+
+      // ---- frame walking resampler (no timing drift) ----
+      const step = length / outFrames;
+
+      let srcFrame = 0;
+      for (let i = 0; i < outFrames; i++) {
+        const si = (srcFrame | 0) << 1;
+
+        output[i * 2]     = input[si];
+        output[i * 2 + 1] = input[si + 1];
+
+        srcFrame += step;
+      }
+
+      this.total += (outSamples >> 1);
+
       this.audioProcessor.storeSoundCombinedInput(
-        audioArray, 2, length << 1, 0, 28000 /*((65535 >> 1) | 0)*/
+        output,
+        2,
+        outSamples,
+        0,
+        28000 /*((65535 >> 1) | 0)*/
       );
     };
   }
 
   createAudioProcessor() {
-    return new ScriptAudioProcessor(2, 31440).setDebug(this.debug);
+    return new ScriptAudioProcessor(
+      2,
+      31440,
+      8192 + 4096,
+      2048,
+    ).setDebug(this.debug);
   }
 
   setFrameRate(rate) {
