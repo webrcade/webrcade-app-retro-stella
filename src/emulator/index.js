@@ -99,6 +99,10 @@ export class Emulator extends RetroAppWrapper {
     ).setDebug(this.debug);
   }
 
+  getHashFileExtension() {
+    return 'a26';
+  }
+
   setFrameRate(rate) {
     LOG.info("## frame rate set to: " + rate);
     this.frameRate = rate;
