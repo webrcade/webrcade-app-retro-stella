@@ -23,6 +23,21 @@ export class Emulator extends RetroAppWrapper {
 
     let started = 0;
 
+    /* WRC begin: resampling audio callback
+     * Original: audioCarry/total/count did not exist; audioCallback was:
+     *   this.audioCallback = (offset, length) => {
+     *     if (started === START_DELAY) { this.audioProcessor.start(); }
+     *     else if (started < START_DELAY) { started++; return; }
+     *     const inSamples = length << 1;
+     *     const input = new Int16Array(window.Module.HEAP16.buffer, offset, inSamples);
+     *     this.audioProcessor.storeSoundCombinedInput(input, 2, inSamples, 0, 28000);
+     *   };
+     * Problem: WASM output was TIA native ~31440 Hz, JS AudioContext expects 48000 Hz.
+     * The mismatch caused audible popping on iOS.
+     * Fix: C++ now resamples to exactly 800/960 stereo pairs per frame before calling
+     * the JS callback, so length == outFrames and the JS walker is a near-1:1 copy.
+     */
+
     // Fractional sample carry
     this.audioCarry = 0;
 
@@ -48,7 +63,7 @@ export class Emulator extends RetroAppWrapper {
       }
 
       // ---- target frames this callback ----
-      const exactFrames = (31440 + 15) / this.frameRate; // 800.25
+      const exactFrames = (48000 + 15) / this.frameRate;
       const framesWithCarry = exactFrames + this.audioCarry;
       const outFrames = Math.floor(framesWithCarry);
       this.audioCarry = framesWithCarry - outFrames;
@@ -88,12 +103,13 @@ export class Emulator extends RetroAppWrapper {
         28000 /*((65535 >> 1) | 0)*/
       );
     };
+    /* WRC end */
   }
 
   createAudioProcessor() {
     return new ScriptAudioProcessor(
       2,
-      31440,
+      48000,
       8192 + 4096,
       2048,
     ).setDebug(this.debug);
